@@ -8,11 +8,12 @@
   :root { --bg: #050b14; --panel: #0a1628; --accent: #38bdf8; --text: #e2e8f0; }
   * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
   body { margin: 0; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100dvh; }
-  header { padding: 12px 16px; background: var(--panel); border-bottom: 1px solid #1e3a5f; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  header h1 { margin: 0; font-size: 15px; letter-spacing: 2px; color: var(--accent); }
-  .hdr-right { display: flex; align-items: center; gap: 8px; }
+  header { padding: 12px 14px; background: var(--panel); border-bottom: 1px solid #1e3a5f; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  header h1 { margin: 0; font-size: 14px; letter-spacing: 2px; color: var(--accent); }
+  .hdr-right { display: flex; align-items: center; gap: 6px; }
   #status { font-size: 11px; color: #34d399; font-weight: 700; }
-  .cfg-btn { background: #0f2542; color: var(--accent); border: 1px solid #1e4976; border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+  .cfg-btn { background: #0f2542; color: var(--accent); border: 1px solid #1e4976; border-radius: 8px; padding: 5px 9px; font-size: 11px; font-weight: 600; cursor: pointer; }
+  .cfg-btn.muted { color: #94a3b8; border-color: #334155; }
   #settingsPanel { display: none; padding: 12px 16px; background: #07101e; border-bottom: 1px solid #1e3a5f; gap: 8px; flex-direction: column; }
   #settingsPanel.open { display: flex; }
   #settingsPanel label { font-size: 12px; color: #94a3b8; }
@@ -20,7 +21,8 @@
   #chat { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
   .msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 15px; line-height: 1.4; word-wrap: break-word; }
   .user { align-self: flex-end; background: #0284c7; color: #fff; border-bottom-right-radius: 2px; }
-  .bot { align-self: flex-start; background: var(--panel); border: 1px solid #1e3a5f; border-bottom-left-radius: 2px; }
+  .bot { align-self: flex-start; background: var(--panel); border: 1px solid #1e3a5f; border-bottom-left-radius: 2px; cursor: pointer; }
+  .bot-meta { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 11px; color: #38bdf8; opacity: 0.85; }
   footer { display: flex; gap: 8px; padding: 10px 12px; background: var(--panel); border-top: 1px solid #1e3a5f; }
   footer input { flex: 1; background: #050b14; border: 1px solid #1e3a5f; color: #fff; padding: 12px; border-radius: 10px; font-size: 16px; outline: none; }
   button.btn { background: var(--accent); color: #04101f; border: none; border-radius: 10px; padding: 0 16px; font-weight: 700; font-size: 15px; }
@@ -33,65 +35,283 @@
   <h1>J.A.R.V.I.S. // 24/7</h1>
   <div class="hdr-right">
     <span id="status">ONLINE</span>
+    <button id="voiceBtn" class="cfg-btn" onclick="toggleVoice()">VOICE: ON</button>
     <button class="cfg-btn" onclick="toggleSettings()">SETUP</button>
   </div>
 </header>
 <div id="settingsPanel">
-  <label>Free Groq API Key (for 24/7 AI answers when PC is off — saved only on your phone):</label>
+  <label>Free Groq API Key (for 24/7 AI answers when PC is off):</label>
   <input id="groqKey" type="password" placeholder="gsk_..." onchange="saveCfg()">
-  <label>Optional Home PC Tunnel URL (if your PC is on and you want desktop control):</label>
+  <label>Optional Home PC Tunnel URL (live desktop control when PC is on):</label>
   <input id="pcUrl" type="text" placeholder="https://....trycloudflare.com" onchange="saveCfg()">
+  <label style="color:#38bdf8;user-select:all;">Find My Cloud Relay URL (for iPhone Shortcut): https://ntfy.sh/jarvis_2026_4815ea1d0a234491</label>
 </div>
 <div id="chat">
-  <div class="msg bot">J.A.R.V.I.S. 24/7 uplink active. Tap SETUP once to add your free Groq API key so I can answer anything even when your PC is off.</div>
+  <div class="msg bot" onclick="unlockMobileAudio(); speakJarvis(this.dataset.say, true)" data-say="24/7 cloud link active, sir. Ask me where anyone on your Find My list is anytime.">
+    24/7 cloud link active, sir. Ask me where anyone on your Find My list is anytime.
+    <div class="bot-meta"><span>🔊 Tap to speak</span></div>
+  </div>
 </div>
 <footer>
   <button id="micBtn" class="btn mic" onclick="toggleMic()">MIC</button>
-  <input id="cmd" type="text" placeholder="Ask J.A.R.V.I.S. anything..." onkeydown="if(event.key==='Enter')sendCmd()">
+  <input id="cmd" type="text" placeholder="Ask J.A.R.V.I.S. anything or 'Where is Mom?'..." onkeydown="if(event.key==='Enter')sendCmd()">
   <button class="btn" onclick="sendCmd()">SEND</button>
 </footer>
 <script>
 const REQUIRED_PIN = '2026';
+const CLOUD_RELAY = 'https://ntfy.sh/jarvis_2026_4815ea1d0a234491';
 const urlPin = (new URLSearchParams(location.search).get('pin') || '').slice(0, 4);
 let pin = urlPin || localStorage.getItem('j_pin') || '';
-if (pin !== REQUIRED_PIN) {
-  pin = (prompt('Enter Access PIN:') || '').trim();
-}
+if (pin !== REQUIRED_PIN) pin = (prompt('Enter Access PIN:') || '').trim();
 if (pin === REQUIRED_PIN) localStorage.setItem('j_pin', pin);
 
 const chat = document.getElementById('chat');
 const input = document.getElementById('cmd');
 const groqInput = document.getElementById('groqKey');
 const pcInput = document.getElementById('pcUrl');
+const voiceBtn = document.getElementById('voiceBtn');
 groqInput.value = localStorage.getItem('j_groq') || '';
 pcInput.value = localStorage.getItem('j_pcurl') || '';
+let voiceEnabled = localStorage.getItem('j_voice') !== 'off';
+let audioUnlocked = false;
+let selectedVoice = null;
+let sharedHistory = [];
+let findMyLocations = JSON.parse(localStorage.getItem('j_findmy') || '{}');
 
-function toggleSettings() {
-  document.getElementById('settingsPanel').classList.toggle('open');
+function updateVoiceBtn() {
+  voiceBtn.textContent = voiceEnabled ? 'VOICE: ON' : 'VOICE: OFF';
+  voiceBtn.classList.toggle('muted', !voiceEnabled);
 }
+updateVoiceBtn();
+
+function loadBritishVoice() {
+  if (!('speechSynthesis' in window)) return;
+  const voices = window.speechSynthesis.getVoices();
+  if (!voices.length) return;
+  selectedVoice =
+    voices.find(v => /Daniel|Arthur|Ryan|Oliver|George|Google UK English Male/i.test(v.name)) ||
+    voices.find(v => /en-GB|en_GB/i.test(v.lang)) ||
+    voices.find(v => /en/i.test(v.lang)) ||
+    voices[0];
+}
+if ('speechSynthesis' in window) {
+  loadBritishVoice();
+  window.speechSynthesis.onvoiceschanged = loadBritishVoice;
+}
+
+function unlockMobileAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  try {
+    if ('speechSynthesis' in window) {
+      const prime = new SpeechSynthesisUtterance('');
+      prime.volume = 0;
+      window.speechSynthesis.speak(prime);
+    }
+  } catch (e) {}
+}
+
+function toggleVoice() {
+  unlockMobileAudio();
+  voiceEnabled = !voiceEnabled;
+  localStorage.setItem('j_voice', voiceEnabled ? 'on' : 'off');
+  updateVoiceBtn();
+  if (!voiceEnabled && 'speechSynthesis' in window) window.speechSynthesis.cancel();
+}
+
+function toggleSettings() { document.getElementById('settingsPanel').classList.toggle('open'); }
 function saveCfg() {
   localStorage.setItem('j_groq', groqInput.value.trim());
   localStorage.setItem('j_pcurl', pcInput.value.trim().replace(/\/+$/, ''));
+}
+
+async function fetchRelayState() {
+  try {
+    const r = await fetch(CLOUD_RELAY + '/json?poll=1&since=24h');
+    const raw = await r.text();
+    if (!raw) return;
+    const lines = raw.trim().split('\n');
+    const seen = new Set(sharedHistory.map(m => m.id));
+    for (const line of lines) {
+      try {
+        const env = JSON.parse(line);
+        if (!env || !env.message) continue;
+        const pkt = JSON.parse(env.message);
+        if (pkt.type === 'loc' && pkt.key) {
+          findMyLocations[pkt.key.toLowerCase()] = pkt;
+        } else if (pkt.type === 'msg' && pkt.id && !seen.has(pkt.id)) {
+          seen.add(pkt.id);
+          sharedHistory.push(pkt);
+        }
+      } catch (err) {}
+    }
+    if (sharedHistory.length > 40) sharedHistory = sharedHistory.slice(-40);
+    localStorage.setItem('j_findmy', JSON.stringify(findMyLocations));
+  } catch (e) {}
+}
+
+async function publishPacket(pkt) {
+  try {
+    await fetch(CLOUD_RELAY, {
+      method: 'POST',
+      body: JSON.stringify(pkt)
+    });
+  } catch (e) {}
+}
+
+async function syncCloudEntry(role, text) {
+  const entry = {
+    type: 'msg',
+    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    ts: Date.now(),
+    role: role,
+    text: text,
+    source: 'cloud_web'
+  };
+  sharedHistory.push(entry);
+  if (sharedHistory.length > 40) sharedHistory = sharedHistory.slice(-40);
+  await publishPacket(entry);
+}
+
+fetchRelayState();
+
+function getMyCoords() {
+  return new Promise((resolve) => {
+    if (!('geolocation' in navigator)) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      () => resolve(null),
+      { enableHighAccuracy: true, timeout: 4500, maximumAge: 60000 }
+    );
+  });
+}
+
+async function geocodeAddress(query) {
+  try {
+    const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&q=' + encodeURIComponent(query));
+    const arr = await r.json();
+    if (arr && arr[0]) return { lat: parseFloat(arr[0].lat), lon: parseFloat(arr[0].lon), display: arr[0].display_name };
+  } catch (e) {}
+  return null;
+}
+
+async function getDrivingInfo(fromCoords, toCoords) {
+  try {
+    const url = https://router.project-osrm.org/route/v1/driving/,;,?overview=false;
+    const r = await fetch(url);
+    const d = await r.json();
+    if (d && d.routes && d.routes[0]) {
+      const mins = Math.max(1, Math.round(d.routes[0].duration / 60));
+      const miles = (d.routes[0].distance / 1609.344).toFixed(1);
+      return { mins, miles };
+    }
+  } catch (e) {}
+  return null;
+}
+
+async function checkFindMyQuery(text) {
+  const clean = text.trim();
+
+  const setMatch = clean.match(/^(?:save|set|update)\s+([a-z0-9' -]{1,24}?)\s+(?:at|location\s+to|is\s+at)\s+(.+)$/i);
+  if (setMatch) {
+    const rawName = setMatch[1].trim();
+    const key = rawName.toLowerCase();
+    const addr = setMatch[2].trim();
+    const geo = await geocodeAddress(addr);
+    const locPkt = {
+      type: 'loc',
+      key: key,
+      name: rawName,
+      place: addr,
+      lat: geo ? geo.lat : null,
+      lon: geo ? geo.lon : null,
+      updated: Date.now()
+    };
+    findMyLocations[key] = locPkt;
+    localStorage.setItem('j_findmy', JSON.stringify(findMyLocations));
+    await publishPacket(locPkt);
+    return Updated 's location to , sir.;
+  }
+
+  const whereMatch = clean.match(/^(?:where(?:'s|\s+is|\s+are)|how\s+far(?:'s|\s+is)?|locate|find)\s+([a-z0-9' -]{1,24}?)(?:\s+right\s+now|\s+now|\s+at|\s+from\s+me)?[?.!]*$/i);
+  if (!whereMatch) return null;
+
+  const targetRaw = whereMatch[1].trim();
+  const targetKey = targetRaw.toLowerCase().replace(/^my\s+/, '');
+  if (['my phone', 'my keys', 'my wallet', 'me', 'i'].includes(targetKey)) return null;
+
+  await fetchRelayState();
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').trim();
+  const cleanTarget = norm(targetKey);
+  const matchedKey = Object.keys(findMyLocations).find(k => {
+    const entry = findMyLocations[k] || {};
+    const nk = norm(k);
+    const nn = norm(entry.name);
+    return nk === cleanTarget || nn === cleanTarget || (cleanTarget && (nk.includes(cleanTarget) || nn.includes(cleanTarget)));
+  });
+
+  if (!matchedKey) {
+    return I don't have a live Find My location synced for  yet, sir. Run your Find My Sync Shortcut on iPhone or tell me "Save  at [address]".;
+  }
+
+  const person = findMyLocations[matchedKey];
+  const displayName = person.name || (targetRaw.charAt(0).toUpperCase() + targetRaw.slice(1));
+  const placeText = person.place || 'an unlisted address';
+
+  let destCoords = (typeof person.lat === 'number' && typeof person.lon === 'number')
+    ? { lat: person.lat, lon: person.lon }
+    : await geocodeAddress(placeText);
+
+  const myCoords = await getMyCoords();
+  if (myCoords && destCoords) {
+    const drive = await getDrivingInfo(myCoords, destCoords);
+    if (drive) {
+      return ${displayName} is currently at , about a -minute drive ( miles) from you, sir.;
+    }
+  }
+
+  return ${displayName} is currently at , sir. Enable location access in your browser if you'd like exact driving minutes from your spot.;
+}
+
+function speakJarvis(text, force = false, onReveal = null) {
+  let done = false;
+  const reveal = () => { if (!done && onReveal) { done = true; onReveal(); } };
+  if (!voiceEnabled && !force) { reveal(); return; }
+  const clean = text.replace(/[*#_~>]/g, '').replace(/\s+/g, ' ').trim();
+  if (!clean || !('speechSynthesis' in window)) { reveal(); return; }
+  try {
+    window.speechSynthesis.cancel();
+    loadBritishVoice();
+    const u = new SpeechSynthesisUtterance(clean);
+    if (selectedVoice) u.voice = selectedVoice;
+    u.lang = (selectedVoice && selectedVoice.lang) || 'en-GB';
+    u.pitch = 0.90;
+    u.rate = 1.04;
+    u.onstart = () => { document.getElementById('status').textContent = 'SPEAKING...'; reveal(); };
+    u.onend = () => { document.getElementById('status').textContent = 'ONLINE'; };
+    u.onerror = () => { document.getElementById('status').textContent = 'ONLINE'; reveal(); };
+    window.speechSynthesis.speak(u);
+    setTimeout(reveal, 220);
+  } catch (e) {
+    document.getElementById('status').textContent = 'ONLINE';
+    reveal();
+  }
 }
 
 function addMsg(text, cls) {
   const d = document.createElement('div');
   d.className = 'msg ' + cls;
   d.textContent = text;
+  if (cls === 'bot') {
+    d.dataset.say = text;
+    d.onclick = () => { unlockMobileAudio(); speakJarvis(text, true); };
+    const meta = document.createElement('div');
+    meta.className = 'bot-meta';
+    meta.innerHTML = '<span>🔊 Tap to replay</span>';
+    d.appendChild(meta);
+  }
   chat.appendChild(d);
   chat.scrollTop = chat.scrollHeight;
-}
-
-function speakBritish(text) {
-  if (!('speechSynthesis' in window)) return;
-  window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(text);
-  const voices = window.speechSynthesis.getVoices();
-  const uk = voices.find(v => /en-GB|Daniel|Arthur|Ryan|British/i.test(v.lang + ' ' + v.name));
-  if (uk) u.voice = uk;
-  u.pitch = 0.92;
-  u.rate = 1.03;
-  window.speechSynthesis.speak(u);
 }
 
 function evalQuickMath(text) {
@@ -107,6 +327,7 @@ function evalQuickMath(text) {
 }
 
 async function sendCmd() {
+  unlockMobileAudio();
   if ((localStorage.getItem('j_pin') || '') !== REQUIRED_PIN) {
     addMsg('Unauthorized: Open with ?pin=2026', 'bot');
     return;
@@ -116,12 +337,16 @@ async function sendCmd() {
   input.value = '';
   addMsg(text, 'user');
   document.getElementById('status').textContent = 'THINKING...';
+  syncCloudEntry('user', text);
 
   const low = text.toLowerCase();
   let reply = '';
 
-  if (['hey', 'hi', 'hello', 'jarvis', 'hey jarvis'].includes(low)) {
-    reply = 'At your service, sir. 24/7 cloud systems are online.';
+  const findMyReply = await checkFindMyQuery(text);
+  if (findMyReply) {
+    reply = findMyReply;
+  } else if (['hey', 'hi', 'hello', 'jarvis', 'hey jarvis'].includes(low)) {
+    reply = 'At your service, sir. Cloud memory and Find My tracking are online.';
   } else if (evalQuickMath(text)) {
     reply = evalQuickMath(text);
   } else {
@@ -137,7 +362,7 @@ async function sendCmd() {
         const d = await r.json();
         reply = d.reply || 'Executed on desktop, sir.';
       } catch (e) {
-        reply = 'Your home PC is currently offline or asleep, sir, so I cannot control desktop apps right now.';
+        reply = 'Your PC is currently powered off, sir, so I logged your request to shared memory for your desktop app.';
       }
     } else {
       const key = localStorage.getItem('j_groq') || '';
@@ -145,20 +370,31 @@ async function sendCmd() {
         reply = 'Tap SETUP at the top right and paste your free Groq API key so I can answer any question 24/7 while your PC is off, sir.';
       } else {
         try {
+          const contextMsgs = sharedHistory.slice(-8).map(m => ({
+            role: m.role === 'user' ? 'user' : 'assistant',
+            content: m.text
+          }));
           const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
             method: 'POST',
             headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
             body: JSON.stringify({
               model: 'llama-3.3-70b-versatile',
               messages: [
-                { role: 'system', content: 'You are J.A.R.V.I.S., Tony Stark\'s witty, concise British AI assistant. Address the user as sir.' },
+                { role: 'system', content: 'You are J.A.R.V.I.S., Tony Stark\'s witty, concise British AI assistant. Keep answers brief (1-3 sentences). Address the user as sir.' },
+                ...contextMsgs,
                 { role: 'user', content: text }
               ],
-              max_tokens: 450
+              max_tokens: 300
             })
           });
           const d = await r.json();
-          reply = (d.choices && d.choices[0] && d.choices[0].message.content) || 'No response received, sir.';
+          if (d.choices && d.choices[0] && d.choices[0].message && d.choices[0].message.content) {
+            reply = d.choices[0].message.content;
+          } else if (d.error && d.error.message) {
+            reply = 'Groq API error: ' + d.error.message;
+          } else {
+            reply = 'No response received from AI, sir.';
+          }
         } catch (e) {
           reply = 'Network error reaching cloud AI: ' + e.message;
         }
@@ -166,13 +402,16 @@ async function sendCmd() {
     }
   }
 
-  addMsg(reply, 'bot');
-  speakBritish(reply);
-  document.getElementById('status').textContent = 'ONLINE';
+  syncCloudEntry('assistant', reply);
+  speakJarvis(reply, false, () => {
+    addMsg(reply, 'bot');
+    document.getElementById('status').textContent = 'ONLINE';
+  });
 }
 
 let recog;
 function toggleMic() {
+  unlockMobileAudio();
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!SR) { alert('Speech recognition not supported in this browser.'); return; }
   const btn = document.getElementById('micBtn');
@@ -184,7 +423,7 @@ function toggleMic() {
   recog.onresult = (e) => { input.value = e.results[0][0].transcript; sendCmd(); };
   recog.start();
 }
-if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
 </script>
 </body>
 </html>
+
