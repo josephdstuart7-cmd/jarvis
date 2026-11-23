@@ -1,0 +1,190 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>J.A.R.V.I.S. 24/7 Mobile Link</title>
+<style>
+  :root { --bg: #050b14; --panel: #0a1628; --accent: #38bdf8; --text: #e2e8f0; }
+  * { box-sizing: border-box; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { margin: 0; background: var(--bg); color: var(--text); display: flex; flex-direction: column; height: 100dvh; }
+  header { padding: 12px 16px; background: var(--panel); border-bottom: 1px solid #1e3a5f; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  header h1 { margin: 0; font-size: 15px; letter-spacing: 2px; color: var(--accent); }
+  .hdr-right { display: flex; align-items: center; gap: 8px; }
+  #status { font-size: 11px; color: #34d399; font-weight: 700; }
+  .cfg-btn { background: #0f2542; color: var(--accent); border: 1px solid #1e4976; border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+  #settingsPanel { display: none; padding: 12px 16px; background: #07101e; border-bottom: 1px solid #1e3a5f; gap: 8px; flex-direction: column; }
+  #settingsPanel.open { display: flex; }
+  #settingsPanel label { font-size: 12px; color: #94a3b8; }
+  #settingsPanel input { background: #050b14; border: 1px solid #1e3a5f; color: #fff; padding: 8px 10px; border-radius: 8px; font-size: 14px; }
+  #chat { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 15px; line-height: 1.4; word-wrap: break-word; }
+  .user { align-self: flex-end; background: #0284c7; color: #fff; border-bottom-right-radius: 2px; }
+  .bot { align-self: flex-start; background: var(--panel); border: 1px solid #1e3a5f; border-bottom-left-radius: 2px; }
+  footer { display: flex; gap: 8px; padding: 10px 12px; background: var(--panel); border-top: 1px solid #1e3a5f; }
+  footer input { flex: 1; background: #050b14; border: 1px solid #1e3a5f; color: #fff; padding: 12px; border-radius: 10px; font-size: 16px; outline: none; }
+  button.btn { background: var(--accent); color: #04101f; border: none; border-radius: 10px; padding: 0 16px; font-weight: 700; font-size: 15px; }
+  button.mic { background: #1e293b; color: #38bdf8; border: 1px solid #38bdf8; }
+  button.mic.live { background: #ef4444; color: #fff; border-color: #ef4444; }
+</style>
+</head>
+<body>
+<header>
+  <h1>J.A.R.V.I.S. // 24/7</h1>
+  <div class="hdr-right">
+    <span id="status">ONLINE</span>
+    <button class="cfg-btn" onclick="toggleSettings()">SETUP</button>
+  </div>
+</header>
+<div id="settingsPanel">
+  <label>Free Groq API Key (for 24/7 AI answers when PC is off — saved only on your phone):</label>
+  <input id="groqKey" type="password" placeholder="gsk_..." onchange="saveCfg()">
+  <label>Optional Home PC Tunnel URL (if your PC is on and you want desktop control):</label>
+  <input id="pcUrl" type="text" placeholder="https://....trycloudflare.com" onchange="saveCfg()">
+</div>
+<div id="chat">
+  <div class="msg bot">J.A.R.V.I.S. 24/7 uplink active. Tap SETUP once to add your free Groq API key so I can answer anything even when your PC is off.</div>
+</div>
+<footer>
+  <button id="micBtn" class="btn mic" onclick="toggleMic()">MIC</button>
+  <input id="cmd" type="text" placeholder="Ask J.A.R.V.I.S. anything..." onkeydown="if(event.key==='Enter')sendCmd()">
+  <button class="btn" onclick="sendCmd()">SEND</button>
+</footer>
+<script>
+const REQUIRED_PIN = '2026';
+const urlPin = (new URLSearchParams(location.search).get('pin') || '').slice(0, 4);
+let pin = urlPin || localStorage.getItem('j_pin') || '';
+if (pin !== REQUIRED_PIN) {
+  pin = (prompt('Enter Access PIN:') || '').trim();
+}
+if (pin === REQUIRED_PIN) localStorage.setItem('j_pin', pin);
+
+const chat = document.getElementById('chat');
+const input = document.getElementById('cmd');
+const groqInput = document.getElementById('groqKey');
+const pcInput = document.getElementById('pcUrl');
+groqInput.value = localStorage.getItem('j_groq') || '';
+pcInput.value = localStorage.getItem('j_pcurl') || '';
+
+function toggleSettings() {
+  document.getElementById('settingsPanel').classList.toggle('open');
+}
+function saveCfg() {
+  localStorage.setItem('j_groq', groqInput.value.trim());
+  localStorage.setItem('j_pcurl', pcInput.value.trim().replace(/\/+$/, ''));
+}
+
+function addMsg(text, cls) {
+  const d = document.createElement('div');
+  d.className = 'msg ' + cls;
+  d.textContent = text;
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function speakBritish(text) {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  const voices = window.speechSynthesis.getVoices();
+  const uk = voices.find(v => /en-GB|Daniel|Arthur|Ryan|British/i.test(v.lang + ' ' + v.name));
+  if (uk) u.voice = uk;
+  u.pitch = 0.92;
+  u.rate = 1.03;
+  window.speechSynthesis.speak(u);
+}
+
+function evalQuickMath(text) {
+  let c = text.toLowerCase().trim().replace(/[?.!]+$/, '');
+  c = c.replace(/^(what is|whats|what's|calculate|solve)\s+/, '').replace(/x/g, '*');
+  if (/^[\d\s+\-*/.()]+$/.test(c) && /[+\-*/]/.test(c)) {
+    try {
+      const v = Function('"use strict";return (' + c + ')')();
+      if (typeof v === 'number' && isFinite(v)) return v + ', sir.';
+    } catch (e) {}
+  }
+  return null;
+}
+
+async function sendCmd() {
+  if ((localStorage.getItem('j_pin') || '') !== REQUIRED_PIN) {
+    addMsg('Unauthorized: Open with ?pin=2026', 'bot');
+    return;
+  }
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  addMsg(text, 'user');
+  document.getElementById('status').textContent = 'THINKING...';
+
+  const low = text.toLowerCase();
+  let reply = '';
+
+  if (['hey', 'hi', 'hello', 'jarvis', 'hey jarvis'].includes(low)) {
+    reply = 'At your service, sir. 24/7 cloud systems are online.';
+  } else if (evalQuickMath(text)) {
+    reply = evalQuickMath(text);
+  } else {
+    const pcUrl = localStorage.getItem('j_pcurl') || '';
+    const isPcTask = /(open |click|screen|fortnite|notepad|cpu|ram|disk|mute|volume)/i.test(text);
+    if (pcUrl && isPcTask) {
+      try {
+        const r = await fetch(pcUrl + '/api/cmd?pin=' + REQUIRED_PIN, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Pin': REQUIRED_PIN },
+          body: JSON.stringify({ command: text })
+        });
+        const d = await r.json();
+        reply = d.reply || 'Executed on desktop, sir.';
+      } catch (e) {
+        reply = 'Your home PC is currently offline or asleep, sir, so I cannot control desktop apps right now.';
+      }
+    } else {
+      const key = localStorage.getItem('j_groq') || '';
+      if (!key) {
+        reply = 'Tap SETUP at the top right and paste your free Groq API key so I can answer any question 24/7 while your PC is off, sir.';
+      } else {
+        try {
+          const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: 'llama-3.3-70b-versatile',
+              messages: [
+                { role: 'system', content: 'You are J.A.R.V.I.S., Tony Stark\'s witty, concise British AI assistant. Address the user as sir.' },
+                { role: 'user', content: text }
+              ],
+              max_tokens: 450
+            })
+          });
+          const d = await r.json();
+          reply = (d.choices && d.choices[0] && d.choices[0].message.content) || 'No response received, sir.';
+        } catch (e) {
+          reply = 'Network error reaching cloud AI: ' + e.message;
+        }
+      }
+    }
+  }
+
+  addMsg(reply, 'bot');
+  speakBritish(reply);
+  document.getElementById('status').textContent = 'ONLINE';
+}
+
+let recog;
+function toggleMic() {
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('Speech recognition not supported in this browser.'); return; }
+  const btn = document.getElementById('micBtn');
+  if (recog) { recog.stop(); recog = null; btn.classList.remove('live'); return; }
+  recog = new SR();
+  recog.lang = 'en-US';
+  recog.onstart = () => btn.classList.add('live');
+  recog.onend = () => { btn.classList.remove('live'); recog = null; };
+  recog.onresult = (e) => { input.value = e.results[0][0].transcript; sendCmd(); };
+  recog.start();
+}
+if ('speechSynthesis' in window) window.speechSynthesis.getVoices();
+</script>
+</body>
+</html>
